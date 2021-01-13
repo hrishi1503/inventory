@@ -1,0 +1,240 @@
+models.py
+class Server(models.Model):
+    server_name = models.CharField(max_length=20, blank=False, unique=True)
+    cluster_name = models.CharField(max_length=20)
+    os_version = models.CharField(max_length=20)
+    server_type = models.CharField(max_length=20)
+    cpus = models.IntegerField()
+    memory = models.IntegerField()
+    description = models.CharField(max_length=100)
+    choices=(
+        ('READY', 'Server is up and Scheduled'),
+        ('NOTREADY', 'Server has some issue'),
+        ('READYFORSCH', 'Server is ready to be Scheduled')
+    )
+    server_status = models.CharField(max_length=20, choices=choices, default="READY")
+
+    def __str__(self):
+        return 'Server_Name: {0} Cluster_name: {1} OS_version: {2}'.format(self.server_name, self.cluster_name, self.os_version)
+
+index.html
+{% extends 'base.html' %}
+
+{% block body %}
+
+  <br>
+
+  <div class="container">
+     <form method="POST" action="/search/">
+        {% csrf_token %}
+        <div class="from-group">
+
+          <div class="col-lg-5">
+          <input type="text" name = "srvr" class="form-control" placeholder="Enter the server name"><br>
+          <input type="text" name = "cluster" class="form-control" placeholder="Enter the cluster name"><br>
+          <input type="text" name = "osv" class="form-control" placeholder="Enter the Openshift Version"><br>
+          <input type="text" name = "stype" class="form-control" placeholder="Enter the type of server"><br>
+          <button type="submit" class="btn btn-danger">Search</button>
+          </div>
+        </div>
+     </form>
+  <div>
+
+      <div>
+        {% if messages %}
+        <ul>
+            {% for message in messages %}
+               <li style="color: red">{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %} 
+      </div>
+
+  {% if items %}
+        <br>
+        <h4>{{ header }}</h4>
+        <br>
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <td>id</td>
+              <td>Server</td>
+              <td>Cluster</td>
+              <td>OS Version</td>
+              <td>Type</td>
+              <td>CPUs</td>
+              <td>Memory</td>
+              <td>Status</td>
+              <td>Description</td>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for item in items %}
+                <tr>
+                    <td>{{ item.pk }}</td>
+                    <td>{{ item.server_name }}</td>
+                    <td>{{ item.cluster_name }}</td>
+                    <td>{{ item.os_version }}</td>
+                    <td>{{ item.server_type }}</td>
+                    <td>{{ item.cpus }}</td>
+                    <td>{{ item.memory }}</td>
+                    <td>{{ item.server_status }}</td>
+                    <td>{{ item.description }}</td>
+                </tr>
+            {% endfor %} 
+          </tbody>  
+        </table>
+  {% endif %}
+  </div>
+
+{% endblock %}
+
+search.html
+{% extends 'base.html' %}
+
+{% block body %}
+  
+
+       <br><br>
+     
+
+      <div style="color: blue">
+        {% if sr %}
+              </br>
+              <h4>Search Result</h4>
+              <a href="{% url 'index' %}" class="btn btn-primary bt-md" role="button">Home</a>
+              </br>
+            <table class="table table-hover">
+               <thead>
+                 <tr>
+                   <td>id</td>
+                   <td>Server</td>
+                   <td>Cluster</td>
+                   <td>OS Version</td>
+                   <td>Type</td>
+                   <td>CPUs</td>
+                   <td>Memory</td>
+                   <td>Status</td>
+                   <td>Description</td>
+                 </tr>
+                </thead>
+
+                <tbody>
+                  {% for k in sr %}
+                      <tr>
+                          <td>{{ k.pk }}</td>
+                          <td>{{ k.server_name }}</td>
+                          <td>{{ k.cluster_name }}</td>
+                          <td>{{ k.os_version }}</td>
+                          <td>{{ k.server_type }}</td>
+                          <td>{{ k.cpus }}</td>
+                          <td>{{ k.memory }}</td>
+                          <td>{{ k.server_status }}</td>
+                          <td>{{ k.description }}</td>
+                      </tr>
+                  {% endfor %} 
+                </tbody>  
+             </table>
+
+        {% endif %}
+      </div>
+   </div>
+{% endblock %}
+
+views.py
+from django.shortcuts import render, HttpResponseRedirect
+from django.contrib import messages
+from django.db.models import Q
+from .models import *
+
+# Create your views here.
+def index(request):
+    return render(request, 'index.html')
+
+def home(request):
+    return render(request, 'base.html')
+
+def display_servers(request):
+    items = Server.objects.all()
+    context = {
+        'items' : items,
+        'header' : 'Server List'
+    }
+
+    return render(request, 'index.html', context)
+
+def search(request):
+    if request.method=='POST':
+        servername = request.POST['srvr']
+        clus = request.POST['cluster']
+        osversion = request.POST['osv']
+        svrtype = request.POST['stype']
+
+        if servername or clus or osversion or svrtype:
+            match=Server.objects.filter(server_name__icontains=servername, cluster_name__icontains=clus, os_version__icontains=osversion, server_type__icontains=svrtype)
+        
+        '''
+        if clus or osversion:
+            match=Server.objects.filter(cluster_name__icontains=clus, os_version__icontains=osversion)
+        if osversion:
+            match=Server.objects.filter(Q(os_version__icontains=osversion))
+        if svrtype:
+            match=Server.objects.filter(Q(server_type__icontains=svrtype)) 
+        '''
+            
+        srchcontext = {
+            'sr' : match
+        }
+
+        if match:
+            return render(request,'search.html', srchcontext)
+        else:
+            messages.error(request,'No result found')
+        
+    else:
+        return HttpResponseRedirect('index.html')
+    
+    return render(request, 'index.html')
+
+base .html
+<html>
+    <head>
+        <title>Server Inventory</title>
+    </head>
+    
+    {% load static %}
+    <link rel="stylesheet" href="{% static '/css/style.css '%}">
+    <link rel="stylesheet" href="{% static '/css/bootstrap.min.css' %}">
+
+    <body>
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+          <div class="container" >
+          <a class="navbar-brand" href="#">Server Inventory</a>
+          </div>
+        </nav> 
+
+      <div class="container">
+          <br>
+          <a href="{% url 'display_servers' %}" class="btn btn-primary bt-md" role="button">Complete Server List </a>
+     </div> 
+
+     <div class="container">
+        {% block body %}
+
+        {% endblock %}
+     </div>
+
+    </body>
+</html>
+
+urls.py
+from django.conf.urls import url
+from .views import *
+
+urlpatterns = [
+    url(r'^$', index, name='index'),
+    url(r'^display_servers$', display_servers, name='display_servers'),
+    url(r'^search/$', search, name='search'),
+    url(r'^home$', home, name='home'),
+]
